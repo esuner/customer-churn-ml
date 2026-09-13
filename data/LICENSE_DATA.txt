@@ -1,0 +1,5 @@
+DATOS SINTÉTICOS PARA USO ACADÉMICO
+
+Este paquete contiene datos sintéticos generados específicamente para la asignatura
+Laboratorio de Minería de Datos de ISTEA. No contiene información de clientes reales
+ni datos personales reales. Puede utilizarse con fines educativos dentro del curso.

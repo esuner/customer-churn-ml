@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data (tracked with DVC, not Git)
+/data/raw/*.csv
+/data/production/*.csv
+/data/scoring/*.csv
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# Models (large binaries; registered via MLflow instead)
+models/*
+!models/.gitkeep
+
+# Env / secrets
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+.vscode/
