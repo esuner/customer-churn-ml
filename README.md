@@ -50,20 +50,86 @@ customer-churn-ml/
 ## Instalación
 
 ```bash
+git clone https://github.com/esuner/customer-churn-ml.git
+cd customer-churn-ml
 python -m venv .venv
-.venv\Scripts\activate  # Windows
+.venv\Scripts\Activate.ps1   # Windows PowerShell
 pip install -r requirements.txt
 ```
 
+### Recuperar los datos (DVC)
+
+Los CSV no están en este repo — se versionan con DVC y viven en DagsHub
+(`https://dagshub.com/esuner/customer-churn-ml`). Para traerlos:
+
+1. Pedí que te agreguen como colaborador en el repo de DagsHub (pestaña
+   **Collaboration**).
+2. Generá tu propio token: en DagsHub, ícono de tu perfil → **My Settings** →
+   **Tokens** → **Generate New Token**.
+3. En el repo, botón verde **Data** → copiá los bloques **"Add DVC remote"** y
+   **"Setup credentials"** y pegalos en tu terminal (con `.venv` activado). El
+   segundo bloque guarda tu token en `.dvc/config.local`, que está
+   gitignoreado — nunca se comparte ni se sube.
+4. Traé los datos reales:
+   ```bash
+   dvc pull
+   ```
+
 ## Reproducir el entrenamiento
 
-_Pendiente: se documenta en la Entrega 1 junto con el pipeline de entrenamiento._
+_Pendiente: se documenta cuando el pipeline de entrenamiento (`src/training/`)
+esté armado — ver "Próximos pasos" abajo._
 
-## Estado del proyecto
+## Estado del proyecto (al 13/09/2026)
 
-- [x] Dataset recibido, verificado (checksums) y organizado.
-- [ ] EDA
-- [ ] Pipeline de preprocessing (scikit-learn)
-- [ ] Entrenamiento y comparación de modelos (baseline / lineal / árbol)
-- [ ] Versionado de datos con DVC + DagsHub
-- [ ] Tracking de experimentos con MLflow + Model Registry
+### Hecho
+- [x] Dataset recibido, verificado (checksums) y organizado en `data/`.
+- [x] EDA — [notebooks/01_eda.ipynb](notebooks/01_eda.ipynb). Hallazgos clave:
+      ~26% churn (dataset desbalanceado → no usar Accuracy sola), los 26
+      faltantes de `TotalCharges` son clientes con `tenure==0` (no se
+      descartan, se imputan), `customerID` sin duplicados y excluido como
+      predictor, `Contract` y `tenure` fuertemente asociados al churn.
+- [x] Repositorio en GitHub, estructura de carpetas recomendada creada.
+- [x] Dataset versionado con **DVC**, remote funcional en **DagsHub**
+      (`dvc push`/`dvc pull` probados).
+
+### Pendiente para Entrega 1 (22/09/2026 — 19:00 h)
+
+1. **Partición train/test reproducible** — módulo `src/data/load_data.py`
+   (arrancado: función `load_raw_data()` que centraliza la conversión de
+   `TotalCharges` a numérico, la misma corrección que se hizo a mano en el
+   EDA). Falta la función `split_data()`: `train_test_split` con
+   `random_state` fijo y `stratify=y` sobre la columna `Churn` (importante
+   por el desbalance ~26/74 que se vio en el EDA).
+2. **Pipeline de preprocessing** en `src/features/` con
+   `ColumnTransformer` de scikit-learn: `SimpleImputer` para
+   `TotalCharges`, `OneHotEncoder` para las categóricas, `StandardScaler`
+   para las numéricas (al menos para el modelo lineal). Debe ser el mismo
+   pipeline el que se use en training e inferencia.
+3. **Entrenamiento y comparación de modelos** en `src/training/` +
+   `src/evaluation/`: al menos `DummyClassifier` (baseline),
+   `LogisticRegression` (lineal) y `RandomForestClassifier` (árbol).
+   Métricas a reportar: Precision, Recall, F1, ROC-AUC y matriz de
+   confusión (Accuracy sola no alcanza). Justificar qué métrica pesa más
+   dado que un falso negativo (cliente que iba a abandonar y no se
+   detectó) tiene mayor costo de negocio.
+4. **MLflow**: loggear cada corrida (parámetros, métricas, artefactos,
+   modelo) contra el tracking server de DagsHub. Se necesitan **al menos 6
+   runs relevantes** (ej. variando hiperparámetros de cada modelo, no
+   ejecuciones arbitrarias).
+5. **Model Registry**: registrar el modelo candidato elegido, con
+   justificación de por qué se eligió ese y no otro.
+6. **Entrenamiento ejecutable por script**, no por notebook a mano — la
+   estructura en `src/` + `scripts/` ya está pensada para esto.
+7. Tag Git **`entrega-1`** sobre el commit final que se presente.
+
+### Cómo seguir (para quien retome esto)
+
+- El módulo de partición de datos quedó a mitad de camino: falta agregar
+  `split_data()` a `src/data/load_data.py` (ver punto 1 arriba) y un
+  bloque `if __name__ == "__main__":` que imprima el shape y el % de churn
+  de train/test para verificar que la estratificación funcionó.
+- Después de eso, el orden lógico es: pipeline de preprocessing → script
+  de entrenamiento con los 3 modelos → conectar MLflow (tracking URI del
+  proyecto en DagsHub, se consigue en la pestaña **Experiments** → **Remote**)
+  → 6+ runs → registrar el mejor modelo.
