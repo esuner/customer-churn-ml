@@ -80,7 +80,7 @@ Los CSV no están en este repo — se versionan con DVC y viven en DagsHub
 _Pendiente: se documenta cuando el pipeline de entrenamiento (`src/training/`)
 esté armado — ver "Próximos pasos" abajo._
 
-## Estado del proyecto (al 13/09/2026)
+## Estado del proyecto (al 16/09/2026)
 
 ### Hecho
 - [x] Dataset recibido, verificado (checksums) y organizado en `data/`.
@@ -92,44 +92,43 @@ esté armado — ver "Próximos pasos" abajo._
 - [x] Repositorio en GitHub, estructura de carpetas recomendada creada.
 - [x] Dataset versionado con **DVC**, remote funcional en **DagsHub**
       (`dvc push`/`dvc pull` probados).
+- [x] Partición train/test reproducible — `src/data/load_data.py`:
+      `load_raw_data()` (centraliza el fix de `TotalCharges`) +
+      `split_data()` (stratified `train_test_split`, `random_state=42`,
+      excluye `customerID`). Verificado: 5.634 train / 1.409 test,
+      churn rate 26.36% / 26.40% (la estratificación preserva el
+      desbalance en ambos conjuntos). Se corre con
+      `python -m src.data.load_data`.
 
 ### Pendiente para Entrega 1 (22/09/2026 — 19:00 h)
 
-1. **Partición train/test reproducible** — módulo `src/data/load_data.py`
-   (arrancado: función `load_raw_data()` que centraliza la conversión de
-   `TotalCharges` a numérico, la misma corrección que se hizo a mano en el
-   EDA). Falta la función `split_data()`: `train_test_split` con
-   `random_state` fijo y `stratify=y` sobre la columna `Churn` (importante
-   por el desbalance ~26/74 que se vio en el EDA).
-2. **Pipeline de preprocessing** en `src/features/` con
+1. **Pipeline de preprocessing** en `src/features/` con
    `ColumnTransformer` de scikit-learn: `SimpleImputer` para
    `TotalCharges`, `OneHotEncoder` para las categóricas, `StandardScaler`
    para las numéricas (al menos para el modelo lineal). Debe ser el mismo
    pipeline el que se use en training e inferencia.
-3. **Entrenamiento y comparación de modelos** en `src/training/` +
+2. **Entrenamiento y comparación de modelos** en `src/training/` +
    `src/evaluation/`: al menos `DummyClassifier` (baseline),
    `LogisticRegression` (lineal) y `RandomForestClassifier` (árbol).
    Métricas a reportar: Precision, Recall, F1, ROC-AUC y matriz de
    confusión (Accuracy sola no alcanza). Justificar qué métrica pesa más
    dado que un falso negativo (cliente que iba a abandonar y no se
    detectó) tiene mayor costo de negocio.
-4. **MLflow**: loggear cada corrida (parámetros, métricas, artefactos,
+3. **MLflow**: loggear cada corrida (parámetros, métricas, artefactos,
    modelo) contra el tracking server de DagsHub. Se necesitan **al menos 6
    runs relevantes** (ej. variando hiperparámetros de cada modelo, no
    ejecuciones arbitrarias).
-5. **Model Registry**: registrar el modelo candidato elegido, con
+4. **Model Registry**: registrar el modelo candidato elegido, con
    justificación de por qué se eligió ese y no otro.
-6. **Entrenamiento ejecutable por script**, no por notebook a mano — la
+5. **Entrenamiento ejecutable por script**, no por notebook a mano — la
    estructura en `src/` + `scripts/` ya está pensada para esto.
-7. Tag Git **`entrega-1`** sobre el commit final que se presente.
+6. Tag Git **`entrega-1`** sobre el commit final que se presente.
 
 ### Cómo seguir (para quien retome esto)
 
-- El módulo de partición de datos quedó a mitad de camino: falta agregar
-  `split_data()` a `src/data/load_data.py` (ver punto 1 arriba) y un
-  bloque `if __name__ == "__main__":` que imprima el shape y el % de churn
-  de train/test para verificar que la estratificación funcionó.
-- Después de eso, el orden lógico es: pipeline de preprocessing → script
-  de entrenamiento con los 3 modelos → conectar MLflow (tracking URI del
-  proyecto en DagsHub, se consigue en la pestaña **Experiments** → **Remote**)
-  → 6+ runs → registrar el mejor modelo.
+- Con `X_train, X_test, y_train, y_test` ya disponibles desde
+  `split_data()`, el siguiente paso lógico es el pipeline de
+  preprocessing (punto 1) → script de entrenamiento con los 3 modelos →
+  conectar MLflow (tracking URI del proyecto en DagsHub, se consigue en
+  la pestaña **Experiments** → **Remote**) → 6+ runs → registrar el
+  mejor modelo.
