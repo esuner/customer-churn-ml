@@ -181,7 +181,28 @@ la versión del modelo. Todos los runs se ejecutaron con el árbol de trabajo
 limpio (`git_dirty=False`). Para recuperar exactamente ese código y esos datos:
 `git checkout fcf2ef1` y `dvc pull`.
 
-## Estado del proyecto (al 21/09/2026)
+## Uso de asistentes de desarrollo
+
+Parte del código de este repositorio se escribió con la asistencia de un LLM
+(Claude, Anthropic), lo cual queda declarado en el historial de Git mediante
+la línea `Co-Authored-By` en los mensajes de commit — por eso puede aparecer
+listado en el panel "Contributors" de GitHub. Esto está permitido
+explícitamente por la consigna del curso:
+
+> "Se permite utilizar documentación, bibliotecas y asistentes de desarrollo
+> siempre que el equipo mantenga comprensión real de la solución, respete las
+> políticas institucionales y pueda defender técnicamente lo implementado."
+
+El equipo puede explicar y defender cada decisión técnica del proyecto: por
+qué se particiona con `stratify`, por qué el pipeline usa `ColumnTransformer`,
+por qué se comparan 7 configuraciones con validación cruzada, por qué se
+prioriza el recall vía `class_weight="balanced"` dado el costo de un falso
+negativo, y por qué se eligió `logreg_C1_balanced` como candidato (ver
+"Experimentos y selección del modelo" arriba). El asistente se usó para
+explicar conceptos y guiar la escritura del código; el diseño, las decisiones
+de negocio y la verificación de cada resultado fueron del equipo.
+
+## Estado del proyecto (al 22/09/2026)
 
 ### Hecho
 - [x] Dataset de la cátedra verificado (checksums) y organizado en `data/`.
