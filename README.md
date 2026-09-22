@@ -66,10 +66,15 @@ Los CSV no están en este repo — se versionan con DVC y viven en DagsHub
    **Collaboration**).
 2. Generá tu propio token: en DagsHub, ícono de tu perfil → **My Settings** →
    **Tokens** → **Generate New Token**.
-3. En el repo, botón verde **Data** → copiá los bloques **"Add DVC remote"** y
-   **"Setup credentials"** y pegalos en tu terminal (con `.venv` activado). El
-   segundo bloque guarda tu token en `.dvc/config.local`, que está
-   gitignoreado — nunca se comparte ni se sube.
+3. El remote ya viene configurado en el repo (`.dvc/config`); solo faltan tus
+   credenciales. Con el `.venv` activado, corré:
+   ```bash
+   dvc remote modify origin --local auth basic
+   dvc remote modify origin --local user <tu usuario de DagsHub>
+   dvc remote modify origin --local password <tu token>
+   ```
+   Se guardan en `.dvc/config.local`, que está gitignoreado — nunca se
+   comparte ni se sube. El mismo token sirve para MLflow (ver abajo).
 4. Traé los datos reales:
    ```bash
    dvc pull
