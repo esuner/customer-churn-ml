@@ -220,11 +220,13 @@ de negocio y la verificación de cada resultado fueron del equipo.
 - [x] 7 runs registrados en MLflow/DagsHub con parámetros, métricas, modelo y
       tags de trazabilidad.
 - [x] Modelo candidato registrado en el Model Registry.
+- [x] Prueba de reproducción por un segundo integrante: Thomas Palacio clonó
+      el repo, ejecutó `dvc pull` y corrió `python -m src.training.train` de
+      forma independiente, confirmando resultados equivalentes.
+- [x] Tag Git `entrega-1` sobre el commit final.
 
-### Pendiente para Entrega 1 (22/09/2026 — 19:00 h)
-- [ ] Prueba de reproducción por un segundo integrante: clonar, `dvc pull`,
-      correr el entrenamiento.
-- [ ] Tag Git `entrega-1` sobre el commit final.
+### Pendiente para Entrega 1
+_Ninguno — entrega cerrada._
 
 ### Limitaciones conocidas
 - La comparación usa una única partición train/test; con más datos o tiempo se
