@@ -1,5 +1,6 @@
 """API de inferencia de churn."""
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
@@ -7,7 +8,10 @@ from fastapi import FastAPI, HTTPException, Request
 from src.inference.predictor import ChurnPredictor
 from src.inference.schemas import CustomerFeatures, HealthResponse, PredictionResponse
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO"),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
 logger = logging.getLogger("churn-api")
 
 

@@ -1,0 +1,10 @@
+services:
+  api:
+    build: .
+    image: churn-api:entrega-2
+    ports:
+      - "8000:8000"
+    environment:
+      LOG_LEVEL: INFO
+      MODEL_DIR: /app/models/churn-classifier
+    restart: unless-stopped

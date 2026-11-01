@@ -1,5 +1,6 @@
 """Carga del modelo exportado y predicción de churn."""
 import json
+import os
 import pickle
 from pathlib import Path
 
@@ -8,7 +9,7 @@ import pandas as pd
 from src.inference.risk import risk_level
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-MODEL_DIR = PROJECT_ROOT / "models" / "churn-classifier"
+MODEL_DIR = Path(os.getenv("MODEL_DIR", PROJECT_ROOT / "models" / "churn-classifier"))
 DECISION_THRESHOLD = 0.5
 
 

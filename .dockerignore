@@ -1,0 +1,26 @@
+.git
+.gitignore
+.venv
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Secretos y configuración local: nunca deben entrar a la imagen
+.env
+.env.*
+.dvc
+.dvcignore
+
+# Lo que la API no necesita en runtime
+data
+notebooks
+tests
+scripts
+mlruns
+mlartifacts
+*.md
+pytest.ini
+requirements.txt
+Dockerfile
+compose.yaml
+.dockerignore
