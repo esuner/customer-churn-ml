@@ -17,9 +17,10 @@ venv/
 mlruns/
 mlartifacts/
 
-# Models (large binaries; registered via MLflow instead)
+# Models: solo se versiona el modelo exportado que usa la API (pesa ~5 KB)
 models/*
 !models/.gitkeep
+!models/churn-classifier/
 
 # Env / secrets
 .env

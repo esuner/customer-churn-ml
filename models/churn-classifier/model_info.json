@@ -1,0 +1,7 @@
+{
+  "model_name": "churn-classifier",
+  "model_version": "1",
+  "source_run_id": "21ae5258b6b1498d80ce6f46ac47992d",
+  "git_commit": "fcf2ef1c8e6b45eaa9d93477d92eabbcfa4809bd",
+  "data_version": "178571792c566f067e3d16b5fb913026"
+}
