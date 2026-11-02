@@ -34,17 +34,20 @@ intencionales a imputar en el pipeline; la partición train/test la define el eq
 
 ```
 customer-churn-ml/
-├── data/            # Dataset (versionado con DVC, no directamente en Git)
+├── app/              # API FastAPI (/health, /predict)
+├── data/             # Dataset (DVC, no directamente en Git) + ejemplos de payload en data/examples
+├── models/           # Modelo exportado del Registry (churn-classifier/), versionado en Git (~5 KB)
 ├── notebooks/        # Exploración (EDA); no es el flujo productivo
+├── scripts/          # Entry points: export_model.py, register_model.py, ...
 ├── src/
-│   ├── data/          # Carga y partición de datos
-│   ├── features/       # Preprocessing (Pipeline / ColumnTransformer)
-│   ├── training/       # Entrenamiento de modelos + registro en MLflow
-│   ├── evaluation/      # Métricas y comparación de modelos
-│   └── inference/       # Carga del modelo registrado y predicción
-├── tests/            # pytest
-├── models/            # Artefactos locales (gitignored; el registro real es MLflow)
-└── scripts/           # Entry points ejecutables (ej. entrenar desde CLI)
+│   ├── data/         # Carga y partición de datos
+│   ├── features/     # Preprocessing (Pipeline / ColumnTransformer)
+│   ├── training/     # Entrenamiento de modelos + registro en MLflow
+│   ├── evaluation/   # Métricas y comparación de modelos
+│   └── inference/    # Predictor, niveles de riesgo y contratos Pydantic
+├── tests/            # pytest (API, predictor y niveles de riesgo)
+├── Dockerfile, compose.yaml, .dockerignore
+└── requirements.txt (desarrollo) · requirements-api.txt (imagen Docker)
 ```
 
 ## Instalación
@@ -181,6 +184,143 @@ la versión del modelo. Todos los runs se ejecutaron con el árbol de trabajo
 limpio (`git_dirty=False`). Para recuperar exactamente ese código y esos datos:
 `git checkout fcf2ef1` y `dvc pull`.
 
+## Servicio de inferencia (Entrega 2)
+
+La API expone el modelo registrado (`churn-classifier`, alias `candidate`) como
+servicio REST con FastAPI. Las transformaciones (imputación, escalado, one-hot)
+viajan dentro del pipeline guardado, así que la API no repite ninguna: aplica
+exactamente las mismas del entrenamiento.
+
+### Levantar el servicio con Docker Compose
+
+Solo hace falta Docker. No se necesita Python, ni credenciales de DagsHub.
+
+```bash
+git clone https://github.com/esuner/customer-churn-ml.git
+cd customer-churn-ml
+docker compose up --build
+```
+
+- API en `http://localhost:8000` y documentación Swagger en `http://localhost:8000/docs`.
+- En segundo plano: `docker compose up -d --build`. Estado: `docker compose ps`.
+  Logs: `docker compose logs`. Detener: `docker compose down`.
+
+### Probar la API
+
+```bash
+curl http://localhost:8000/health
+curl -X POST http://localhost:8000/predict -H "Content-Type: application/json" -d @data/examples/predict_request_valid.json
+```
+
+En PowerShell:
+
+```powershell
+$body = Get-Content data\examples\predict_request_valid.json -Raw
+Invoke-RestMethod -Method Post -ContentType "application/json" -Body $body http://localhost:8000/predict
+```
+
+Respuesta esperada:
+
+```json
+{"prediction": "CHURN", "probability": 0.9144, "risk_level": "HIGH", "model_version": "1"}
+```
+
+| Endpoint | Qué hace | Respuestas |
+|---|---|---|
+| `GET /health` | Indica que el servicio está operativo y qué versión del modelo cargó | `200` `{"status": "ok", "model_version": "1"}` |
+| `POST /predict` | Recibe las características de un cliente y devuelve la predicción | `200` correcta · `422` entrada inválida · `500` error interno (mensaje genérico; el detalle queda solo en los logs) |
+
+**Contrato de entrada** (validado con Pydantic; el esquema completo está en Swagger):
+
+- Son las 19 características del dataset, sin `customerID` (no es un predictor).
+- Las variables categóricas aceptan solo los valores que existen en los datos
+  (por ejemplo `Contract`: `Month-to-month`, `One year` o `Two year`); `SeniorCitizen` es 0 o 1.
+- `tenure` es un entero entre 0 y 72, y `MonthlyCharges` debe ser mayor que 0.
+- `TotalCharges` es opcional: en clientes nuevos puede omitirse y se imputa igual que en el entrenamiento.
+- Los campos desconocidos o faltantes se rechazan con `422`. El ejemplo
+  `data/examples/predict_request_invalid.json` devuelve un `422` que señala
+  `tenure`, `Contract` y `MonthlyCharges`.
+
+**Respuesta:** `prediction` (`CHURN` si la probabilidad es ≥ 0.5, el mismo corte
+con el que se evaluó el modelo), `probability`, `risk_level` y `model_version`.
+
+### Niveles de riesgo
+
+Los cortes se eligieron con datos: se calcularon probabilidades por validación
+cruzada sobre **train** (sin tocar el test) y se midió cuántos clientes de cada
+rango abandonaron realmente.
+
+| Nivel | Probabilidad | % de clientes | Churn real observado |
+|---|---|---|---|
+| `LOW` | < 0.30 | 41 % | 5.8 % |
+| `MEDIUM` | 0.30 a 0.60 | 28 % | ~24 % |
+| `HIGH` | ≥ 0.60 | 31 % | 56 % |
+
+`LOW` tiene unas 4 veces menos churn que el promedio (26 %) y concentra solo el
+9 % de los clientes que se van; `HIGH` tiene más del doble del promedio y
+captura aproximadamente 2 de cada 3 clientes que abandonan. Con
+`class_weight="balanced"` la probabilidad **no está calibrada** (un cliente con
+0.55 abandona en la práctica ~31 % de las veces), por eso los cortes se fijaron
+mirando el churn observado y no el valor crudo. Las constantes están en
+`src/inference/risk.py`.
+
+### Cómo llega el modelo a la imagen
+
+1. `scripts/export_model.py` descarga del Model Registry la versión con alias
+   `candidate` y la guarda en `models/churn-classifier/`, junto con
+   `model_info.json` (versión, run de MLflow, commit y hash de los datos).
+2. Esa carpeta pesa ~5 KB y está versionada en Git, así que construir la imagen
+   no requiere credenciales ni acceso a DagsHub.
+3. La API carga el pipeline con `pickle` al arrancar (sin MLflow) y responde
+   `model_version` con el valor de `model_info.json`. De ahí se llega al run, al
+   commit y a los datos (ver "Trazabilidad").
+
+Para publicar un modelo nuevo: registrarlo, mover el alias `candidate`, correr
+`python scripts/export_model.py` y reconstruir la imagen.
+
+### Configuración y seguridad
+
+- Variables de entorno: `LOG_LEVEL` (por defecto `INFO`) y `MODEL_DIR` (por
+  defecto `models/churn-classifier`); `compose.yaml` las define.
+- La imagen parte de `python:3.11-slim`, instala solo `requirements-api.txt`
+  (sin Jupyter, MLflow ni DVC) y pesa ~700 MB. Corre con un usuario sin
+  privilegios y tiene un `HEALTHCHECK` que consulta `/health`.
+- `.dockerignore` deja afuera `.env`, la configuración de DVC (donde está el
+  token), los datos, los tests y `.git`: no hay secretos en la imagen.
+- Cada predicción se registra en el log (resultado, probabilidad, nivel de
+  riesgo y versión del modelo), sin incluir los datos del cliente.
+
+### Tests
+
+```bash
+pip install -r requirements.txt
+python -m pytest
+```
+
+Son 28 tests que corren en un par de segundos y no necesitan DVC ni credenciales
+(usan el modelo exportado y los ejemplos que están en Git):
+
+- Carga del modelo, con sus metadatos de trazabilidad.
+- Predicción válida: estructura y tipos de la respuesta, determinismo, y un
+  cliente propenso a irse que debe puntuar más alto que uno fiel.
+- `/health` y `/predict`, incluida la coincidencia de `model_version` entre ambos.
+- Entradas inválidas: el ejemplo de la cátedra, valores fuera de contrato, campo
+  faltante, campo desconocido y cuerpo vacío (todos `422`).
+- Error interno simulado: responde `500` sin filtrar detalles.
+- Documentación Swagger accesible, y los cortes de `risk_level` en sus bordes.
+
+### Evidencia de punta a punta
+
+```bash
+git clone https://github.com/esuner/customer-churn-ml.git
+cd customer-churn-ml
+pip install -r requirements.txt
+python -m pytest
+docker build -t churn-api:entrega-2 .
+docker compose up -d
+curl -X POST http://localhost:8000/predict -H "Content-Type: application/json" -d @data/examples/predict_request_valid.json
+```
+
 ## Uso de asistentes de desarrollo
 
 Parte del código de este repositorio se escribió con la asistencia de un LLM
@@ -202,7 +342,7 @@ negativo, y por qué se eligió `logreg_C1_balanced` como candidato (ver
 explicar conceptos y guiar la escritura del código; el diseño, las decisiones
 de negocio y la verificación de cada resultado fueron del equipo.
 
-## Estado del proyecto (al 22/09/2026)
+## Estado del proyecto (al 01/11/2026)
 
 ### Hecho
 - [x] Dataset de la cátedra verificado (checksums) y organizado en `data/`.
@@ -224,14 +364,26 @@ de negocio y la verificación de cada resultado fueron del equipo.
       el repo, ejecutó `dvc pull` y corrió `python -m src.training.train` de
       forma independiente, confirmando resultados equivalentes.
 - [x] Tag Git `entrega-1` sobre el commit final.
+- [x] Entrega 1 cerrada.
+- [x] Modelo exportado del Registry a `models/churn-classifier/` con su
+      metadato de trazabilidad.
+- [x] Capa de inferencia (`src/inference/`) y API FastAPI con `/health` y
+      `/predict`, contratos Pydantic y Swagger.
+- [x] Niveles de riesgo `LOW` / `MEDIUM` / `HIGH` con cortes justificados con datos.
+- [x] 28 tests con pytest.
+- [x] `Dockerfile`, `.dockerignore` y `compose.yaml`: imagen construida y
+      servicio levantado con `docker compose up`, con `/predict` respondiendo.
 
-### Pendiente para Entrega 1
-_Ninguno — entrega cerrada._
+### Pendiente para Entrega 2 (03/11/2026 — 19:00 h)
+- [ ] Prueba de reproducción por un segundo integrante (clonar, `pytest`,
+      `docker build`, `docker compose up`, `POST /predict`).
+- [ ] Tag Git `entrega-2` sobre el commit final.
 
 ### Limitaciones conocidas
 - La comparación usa una única partición train/test; con más datos o tiempo se
   reportarían intervalos de confianza.
-- El umbral de decisión (0.5) no está optimizado contra costos reales.
-- Aún no hay tests automáticos ni API (Entrega 2).
-- MLflow advierte que `SeniorCitizen` se infiere como entero: al definir el
-  contrato de la API habrá que decidir cómo tratar valores faltantes.
+- El corte de decisión (0.5) no está optimizado contra costos reales de cada error.
+- La probabilidad devuelta no está calibrada (efecto de `class_weight="balanced"`);
+  por eso los niveles de riesgo se definieron con el churn observado.
+- La API no tiene autenticación, `request_id` ni logging estructurado, y corre con
+  un solo proceso: queda para la entrega final junto con CI/CD, despliegue y monitoreo.
