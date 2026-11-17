@@ -1,0 +1,182 @@
+{
+  "reference": {
+    "source": "customer_churn_historical.csv",
+    "rows": 7043
+  },
+  "current": {
+    "source": "customer_churn_current.csv",
+    "rows": 2500
+  },
+  "drifted_columns": 11,
+  "total_columns": 19,
+  "columns": [
+    {
+      "column": "MonthlyCharges",
+      "method": "Wasserstein distance (normed)",
+      "score": 0.4858,
+      "threshold": 0.1,
+      "drifted": true,
+      "model_weight": 1.026
+    },
+    {
+      "column": "tenure",
+      "method": "Wasserstein distance (normed)",
+      "score": 0.4768,
+      "threshold": 0.1,
+      "drifted": true,
+      "model_weight": 0.579
+    },
+    {
+      "column": "TotalCharges",
+      "method": "Wasserstein distance (normed)",
+      "score": 0.1702,
+      "threshold": 0.1,
+      "drifted": true,
+      "model_weight": 0.044
+    },
+    {
+      "column": "StreamingTV",
+      "method": "Jensen-Shannon distance",
+      "score": 0.1192,
+      "threshold": 0.1,
+      "drifted": true,
+      "model_weight": 0.115
+    },
+    {
+      "column": "OnlineSecurity",
+      "method": "Jensen-Shannon distance",
+      "score": 0.1184,
+      "threshold": 0.1,
+      "drifted": true,
+      "model_weight": 0.584
+    },
+    {
+      "column": "InternetService",
+      "method": "Jensen-Shannon distance",
+      "score": 0.1155,
+      "threshold": 0.1,
+      "drifted": true,
+      "model_weight": 0.416
+    },
+    {
+      "column": "StreamingMovies",
+      "method": "Jensen-Shannon distance",
+      "score": 0.1154,
+      "threshold": 0.1,
+      "drifted": true,
+      "model_weight": 0.153
+    },
+    {
+      "column": "TechSupport",
+      "method": "Jensen-Shannon distance",
+      "score": 0.1123,
+      "threshold": 0.1,
+      "drifted": true,
+      "model_weight": 0.705
+    },
+    {
+      "column": "Contract",
+      "method": "Jensen-Shannon distance",
+      "score": 0.1062,
+      "threshold": 0.1,
+      "drifted": true,
+      "model_weight": 2.563
+    },
+    {
+      "column": "DeviceProtection",
+      "method": "Jensen-Shannon distance",
+      "score": 0.1021,
+      "threshold": 0.1,
+      "drifted": true,
+      "model_weight": 0.115
+    },
+    {
+      "column": "OnlineBackup",
+      "method": "Jensen-Shannon distance",
+      "score": 0.1009,
+      "threshold": 0.1,
+      "drifted": true,
+      "model_weight": 0.115
+    },
+    {
+      "column": "PaymentMethod",
+      "method": "Jensen-Shannon distance",
+      "score": 0.0744,
+      "threshold": 0.1,
+      "drifted": false,
+      "model_weight": 0.782
+    },
+    {
+      "column": "PaperlessBilling",
+      "method": "Jensen-Shannon distance",
+      "score": 0.055,
+      "threshold": 0.1,
+      "drifted": false,
+      "model_weight": 0.177
+    },
+    {
+      "column": "Dependents",
+      "method": "Jensen-Shannon distance",
+      "score": 0.0416,
+      "threshold": 0.1,
+      "drifted": false,
+      "model_weight": 0.215
+    },
+    {
+      "column": "Partner",
+      "method": "Jensen-Shannon distance",
+      "score": 0.0395,
+      "threshold": 0.1,
+      "drifted": false,
+      "model_weight": 0.253
+    },
+    {
+      "column": "MultipleLines",
+      "method": "Jensen-Shannon distance",
+      "score": 0.0267,
+      "threshold": 0.1,
+      "drifted": false,
+      "model_weight": 0.201
+    },
+    {
+      "column": "PhoneService",
+      "method": "Jensen-Shannon distance",
+      "score": 0.0066,
+      "threshold": 0.1,
+      "drifted": false,
+      "model_weight": 0.201
+    },
+    {
+      "column": "SeniorCitizen",
+      "method": "Jensen-Shannon distance",
+      "score": 0.0044,
+      "threshold": 0.1,
+      "drifted": false,
+      "model_weight": 0.322
+    },
+    {
+      "column": "gender",
+      "method": "Jensen-Shannon distance",
+      "score": 0.0035,
+      "threshold": 0.1,
+      "drifted": false,
+      "model_weight": 0.115
+    }
+  ],
+  "predictions_reference_holdout": {
+    "rows": 1409,
+    "mean_probability": 0.4176,
+    "share_predicted_churn": 0.396,
+    "share_low": 0.4159,
+    "share_medium": 0.2775,
+    "share_high": 0.3066
+  },
+  "predictions_current": {
+    "rows": 2500,
+    "mean_probability": 0.6348,
+    "share_predicted_churn": 0.6972,
+    "share_low": 0.1404,
+    "share_medium": 0.252,
+    "share_high": 0.6076
+  }
+}

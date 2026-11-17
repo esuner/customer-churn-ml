@@ -321,6 +321,87 @@ docker compose up -d
 curl -X POST http://localhost:8000/predict -H "Content-Type: application/json" -d @data/examples/predict_request_valid.json
 ```
 
+## Monitoreo del modelo: data drift (Entrega Final)
+
+El monitoreo del servicio responde «¿funciona?». El monitoreo del modelo responde «¿el
+mundo sobre el que predice sigue pareciéndose al mundo con el que fue entrenado?». Para
+lo segundo se compara, con **Evidently**, el histórico de entrenamiento (referencia, 7.043
+clientes) contra un lote que simula producción (2.500 clientes **sin etiqueta**,
+`data/production/customer_churn_current.csv`).
+
+```bash
+dvc pull
+python -m monitoring.drift_report
+```
+
+Genera `monitoring/reports/drift_report.html` (reporte de Evidently, para abrir en el
+navegador) y `monitoring/reports/drift_summary.json` (resultados en forma tabular).
+
+### Resultado
+
+**11 de las 19 variables muestran drift** (distancia mayor a 0,1, el umbral por defecto de
+Evidently). Las magnitudes son muy distintas: dos variables numéricas cambiaron mucho y el
+resto apenas supera el umbral.
+
+| Variable | Distancia | Peso en el modelo* | Qué cambió (histórico → producción) |
+|---|---|---|---|
+| `MonthlyCharges` | 0,49 | 1,03 | media 68,2 → 80,3 |
+| `tenure` | 0,48 | 0,58 | media 35 → 26 meses |
+| `TotalCharges` | 0,17 | 0,04 | media 2.312 → 2.044 |
+| `Contract` | 0,11 | **2,56** | mes a mes 54 % → 66 %; dos años 24 % → 14 % |
+| `InternetService` | 0,12 | 0,42 | fibra óptica 45 % → 59 %; sin internet 22 % → 11 % |
+| `OnlineSecurity`, `TechSupport`, `OnlineBackup`, `DeviceProtection`, `StreamingTV`, `StreamingMovies` | 0,10 a 0,12 | 0,12 a 0,70 | ver abajo |
+
+\* Suma de |coeficiente| de las columnas codificadas de esa variable en la regresión
+logística (las numéricas están estandarizadas, así que los pesos son comparables).
+
+Seis de esas variables cambian juntas por **un solo fenómeno**: en producción hay la mitad de
+clientes sin internet (22 % → 11 %), y los servicios adicionales solo existen para quien tiene
+internet. No son seis cambios independientes.
+
+No aparecen categorías nuevas, y solo 9 de 2.500 filas superan apenas el máximo histórico de
+`MonthlyCharges` (118,67 contra 114,41): el modelo recibe clientes en proporciones distintas,
+pero no clientes fuera de lo que conoce.
+
+### Interpretación e impacto sobre el modelo
+
+La población de producción es **más nueva, con facturas más altas, más fibra óptica y más
+contratos mes a mes**. Es justo el perfil que, según el EDA y el modelo, se asocia a más
+churn, y las variables que más pesan en el modelo (`Contract`, `MonthlyCharges`, `tenure`) son
+las que cambiaron. Se nota en las predicciones sobre el lote de producción, comparadas con las
+del conjunto de test:
+
+| | Test (referencia) | Producción |
+|---|---|---|
+| Probabilidad media | 0,42 | 0,63 |
+| Clientes con predicción `CHURN` | 40 % | 70 % |
+| Nivel `LOW` | 42 % | 14 % |
+| Nivel `HIGH` | 31 % | 61 % |
+
+### Qué se puede y qué no se puede concluir
+
+- **Es drift de datos, no degradación comprobada.** Que cambie la población no implica que el
+  modelo acierte menos: el lote no tiene etiquetas, así que no se puede medir su performance.
+- La probabilidad del modelo **no está calibrada** (efecto de `class_weight="balanced"`), por
+  lo que el salto de 0,42 a 0,63 indica que el riesgo percibido sube, no es un pronóstico del
+  churn real.
+- Evidently se corrió con sus umbrales por defecto y el lote de producción es simulado.
+
+### Acción propuesta
+
+**No se reentrena automáticamente.** El orden razonable es:
+
+1. **Investigar** si el cambio es real (otra campaña de captación, estacionalidad) o un
+   problema de la fuente de datos. Un salto así en pocas variables a la vez merece
+   confirmación antes de actuar.
+2. **Medir performance** apenas haya etiquetas de ese período (recall y ROC-AUC sobre los
+   clientes recientes). Como son clientes nuevos, las etiquetas tardan en llegar.
+3. **Avisar al negocio**: si el volumen de alertas `HIGH` pasa de ~31 % a ~61 %, la campaña de
+   retención va a recibir el doble de clientes, y puede hacer falta ajustar su capacidad o el
+   corte de riesgo.
+4. **Reentrenar o recalibrar solo si** la performance medida cae por debajo de un umbral
+   acordado, usando datos recientes etiquetados, con el mismo proceso de la Entrega 1.
+
 ## Uso de asistentes de desarrollo
 
 Parte del código de este repositorio se escribió con la asistencia de un LLM

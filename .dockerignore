@@ -16,6 +16,7 @@ data
 notebooks
 tests
 scripts
+monitoring
 mlruns
 mlartifacts
 *.md
