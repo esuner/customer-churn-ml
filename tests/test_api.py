@@ -13,11 +13,12 @@ def test_predict_returns_contract_fields_with_correct_types(client, valid_payloa
     response = client.post("/predict", json=valid_payload)
     assert response.status_code == 200
     body = response.json()
-    assert set(body) == {"prediction", "probability", "risk_level", "model_version"}
+    assert set(body) == {"prediction", "probability", "risk_level", "model_version", "request_id"}
     assert body["prediction"] in {"CHURN", "NO_CHURN"}
     assert isinstance(body["probability"], float)
     assert body["risk_level"] in {"LOW", "MEDIUM", "HIGH"}
     assert isinstance(body["model_version"], str)
+    assert isinstance(body["request_id"], str)
 
 
 def test_predict_model_version_matches_health(client, valid_payload):

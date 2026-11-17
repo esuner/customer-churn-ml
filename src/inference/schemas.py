@@ -67,6 +67,7 @@ class PredictionResponse(BaseModel):
     probability: float = Field(ge=0, le=1)
     risk_level: Literal["LOW", "MEDIUM", "HIGH"]
     model_version: str
+    request_id: str
 
 
 class HealthResponse(BaseModel):
