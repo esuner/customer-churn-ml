@@ -73,3 +73,5 @@ class PredictionResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: Literal["ok"]
     model_version: str
+    app_version: str
+    git_commit: str

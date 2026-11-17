@@ -227,7 +227,7 @@ Respuesta esperada:
 
 | Endpoint | Qué hace | Respuestas |
 |---|---|---|
-| `GET /health` | Indica que el servicio está operativo y qué versión del modelo cargó | `200` `{"status": "ok", "model_version": "1"}` |
+| `GET /health` | Indica que el servicio está operativo y qué modelo, versión de la aplicación y commit está corriendo | `200` `{"status": "ok", "model_version": "1", "app_version": "1.0.0", "git_commit": "<sha>"}` |
 | `POST /predict` | Recibe las características de un cliente y devuelve la predicción | `200` correcta · `422` entrada inválida · `500` error interno (mensaje genérico; el detalle queda solo en los logs) |
 
 **Contrato de entrada** (validado con Pydantic; el esquema completo está en Swagger):
@@ -320,6 +320,50 @@ docker build -t churn-api:entrega-2 .
 docker compose up -d
 curl -X POST http://localhost:8000/predict -H "Content-Type: application/json" -d @data/examples/predict_request_valid.json
 ```
+
+## CI/CD y versionado de imágenes (Entrega Final)
+
+El workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) automatiza todo lo que hasta
+la Entrega 2 se hacía a mano. Tiene tres jobs encadenados con `needs`, de modo que **si los
+tests fallan, el pipeline se corta y no se construye ni se publica nada**:
+
+| Job | Cuándo corre | Qué hace |
+|---|---|---|
+| `Tests` | en cada push a `main`, en cada tag `v*` y en cada pull request | `checkout`, instala `requirements.txt` y corre `pytest` |
+| `Imagen Docker` | si pasaron los tests | construye la imagen, la **prueba levantándola** (`/health`, que el commit coincida, y un `/predict`) y la publica en GHCR. En pull requests construye y prueba, pero no publica |
+| `Release en GitHub` | solo con un tag `v*` | crea la release con la imagen y el commit |
+
+### Cómo se versionan las imágenes
+
+La imagen se publica en **GitHub Container Registry**: `ghcr.io/esuner/customer-churn-ml`.
+
+| Qué se sube | Tags de la imagen |
+|---|---|
+| push a `main` | `main` y `sha-<commit corto>` |
+| tag `v1.0.0` | `1.0.0`, `1.0` y `sha-<commit corto>` (y `latest`) |
+
+En producción se usa siempre un tag de versión (por ejemplo `1.0.0`), nunca `latest`. Cada imagen
+lleva su identidad dentro: el build recibe la versión y el commit y `GET /health` los devuelve,
+igual que el log de arranque. Así, desde cualquier instancia en ejecución se llega a su commit.
+
+### Publicar una versión
+
+```bash
+git tag -a v1.0.0 -m "Entrega Final"
+git push origin v1.0.0
+```
+
+El push del tag dispara el workflow completo: tests, imagen `1.0.0` en GHCR y la release en GitHub.
+Las ejecuciones se ven en la pestaña **Actions** del repositorio.
+
+### Descargar la imagen
+
+```bash
+docker pull ghcr.io/esuner/customer-churn-ml:1.0.0
+```
+
+Si el paquete es privado hay que iniciar sesión antes con un token con permiso `read:packages`:
+`echo <TOKEN> | docker login ghcr.io -u <usuario> --password-stdin`.
 
 ## Monitoreo del modelo: data drift (Entrega Final)
 

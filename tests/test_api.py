@@ -7,6 +7,8 @@ def test_health_reports_status_and_model_version(client):
     body = response.json()
     assert body["status"] == "ok"
     assert isinstance(body["model_version"], str)
+    assert isinstance(body["app_version"], str) and body["app_version"]
+    assert isinstance(body["git_commit"], str) and body["git_commit"]
 
 
 def test_predict_returns_contract_fields_with_correct_types(client, valid_payload):

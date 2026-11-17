@@ -1,7 +1,12 @@
 services:
   api:
-    build: .
-    image: churn-api:entrega-2
+    # En el servidor se descarga esta imagen (docker compose pull); en local se construye (--build).
+    # Fijá la versión con APP_TAG (por ejemplo en un archivo .env junto a este compose).
+    image: ghcr.io/esuner/customer-churn-ml:${APP_TAG:-latest}
+    build:
+      context: .
+      args:
+        APP_VERSION: ${APP_TAG:-dev}
     ports:
       - "8000:8000"
     environment:

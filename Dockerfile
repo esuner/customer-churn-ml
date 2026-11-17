@@ -18,7 +18,12 @@ COPY models/churn-classifier ./models/churn-classifier
 RUN useradd --create-home appuser
 USER appuser
 
-ENV MODEL_DIR=/app/models/churn-classifier
+# Identidad de la imagen: la fija el CI (versión y commit), así /health y los logs la reportan
+ARG APP_VERSION=dev
+ARG GIT_COMMIT=unknown
+ENV MODEL_DIR=/app/models/churn-classifier \
+    APP_VERSION=${APP_VERSION} \
+    GIT_COMMIT=${GIT_COMMIT}
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \

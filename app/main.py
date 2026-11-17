@@ -1,5 +1,6 @@
 """API de inferencia de churn."""
 import logging
+import os
 import re
 import time
 import uuid
@@ -16,6 +17,9 @@ configure_logging()
 logger = logging.getLogger("churn-api")
 
 VALID_REQUEST_ID = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+# Los fija el build de la imagen (ver Dockerfile y el workflow de CI); en local valen "dev" y "unknown"
+APP_VERSION = os.getenv("APP_VERSION", "dev")
+GIT_COMMIT = os.getenv("GIT_COMMIT", "unknown")
 
 
 @asynccontextmanager
@@ -23,7 +27,14 @@ async def lifespan(app: FastAPI):
     app.state.predictor = ChurnPredictor()
     logger.info(
         "service_started",
-        extra={"fields": {"model_name": "churn-classifier", "model_version": app.state.predictor.model_version}},
+        extra={
+            "fields": {
+                "model_name": "churn-classifier",
+                "model_version": app.state.predictor.model_version,
+                "app_version": APP_VERSION,
+                "git_commit": GIT_COMMIT,
+            }
+        },
     )
     yield
     logger.info("service_stopped")
@@ -72,7 +83,12 @@ async def request_context(request: Request, call_next):
 
 @app.get("/health", response_model=HealthResponse)
 def health(request: Request) -> HealthResponse:
-    return HealthResponse(status="ok", model_version=request.app.state.predictor.model_version)
+    return HealthResponse(
+        status="ok",
+        model_version=request.app.state.predictor.model_version,
+        app_version=APP_VERSION,
+        git_commit=GIT_COMMIT,
+    )
 
 
 @app.post("/predict", response_model=PredictionResponse)

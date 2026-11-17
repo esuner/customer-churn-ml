@@ -26,6 +26,10 @@ models/*
 .env
 .env.*
 
+# Archivos temporales del smoke test local
+health.json
+prediction.json
+
 # OS / editor
 .DS_Store
 .vscode/
