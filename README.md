@@ -365,6 +365,89 @@ docker pull ghcr.io/esuner/customer-churn-ml:1.0.0
 Si el paquete es privado hay que iniciar sesión antes con un token con permiso `read:packages`:
 `echo <TOKEN> | docker login ghcr.io -u <usuario> --password-stdin`.
 
+## Despliegue y operación en un host Linux (runbook)
+
+Escrito para Ubuntu Server (los comandos de instalación son los del procedimiento oficial de
+Docker para Ubuntu). El servidor **solo necesita Docker Engine y Docker Compose**: no hace
+falta Python, ni DVC, ni credenciales, porque la imagen es pública y ya trae el modelo adentro. El puerto `8000` tiene que ser alcanzable por quien vaya a consultar
+la API (en una VM en la nube, abrirlo en el firewall o en el grupo de seguridad).
+
+### 1. Instalar Docker Engine y Git (una sola vez)
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl git
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo usermod -aG docker "$USER"
+```
+
+Cerrar la sesión y volver a entrar (para que aplique el grupo) y verificar:
+
+```bash
+docker --version && docker compose version
+```
+
+### 2. Primer despliegue
+
+```bash
+git clone https://github.com/esuner/customer-churn-ml.git
+cd customer-churn-ml
+git checkout v1.0.0                  # el mismo commit que produjo la imagen
+echo "APP_TAG=1.0.0" > .env          # fija la versión de la imagen; nunca se usa latest en producción
+docker compose pull                  # descarga ghcr.io/esuner/customer-churn-ml:1.0.0
+docker compose up -d
+```
+
+Si la imagen fuera privada, antes de `pull` hay que autenticarse con un token que tenga permiso
+`read:packages`: `echo <TOKEN> | docker login ghcr.io -u <usuario> --password-stdin`.
+
+### 3. Verificar
+
+```bash
+docker compose ps                    # el estado debe decir "(healthy)"
+curl -s http://localhost:8000/health
+curl -s -X POST http://localhost:8000/predict -H "Content-Type: application/json" \
+  -d @data/examples/predict_request_valid.json
+docker compose logs --no-log-prefix | grep '"message": "prediction"'
+```
+
+En `/health`, `app_version` y `git_commit` identifican qué imagen está corriendo, y
+`model_version` qué modelo. La predicción y su `request_id` aparecen también en los logs.
+
+### Comandos de operación
+
+| Tarea | Comando |
+|---|---|
+| Levantar | `docker compose up -d` |
+| Estado | `docker compose ps` |
+| Logs (seguir en vivo) | `docker compose logs -f` |
+| Detener | `docker compose down` |
+| Actualizar a una versión nueva | editar `APP_TAG` en `.env` y luego `docker compose pull && docker compose up -d` |
+| Volver a la versión anterior | poner el `APP_TAG` anterior y repetir `pull` y `up -d` |
+
+El servicio se reinicia solo si el contenedor se cae (`restart: unless-stopped`) y también al
+arrancar el servidor.
+
+### Cómo detectar problemas
+
+No hay una plataforma de alertas: la detección es por consulta, y lo que hay se puede
+automatizar (por ejemplo con `cron`).
+
+| Problema | Cómo se detecta |
+|---|---|
+| **Servicio caído** | `curl -fsS http://localhost:8000/health` falla, o `docker compose ps` muestra `unhealthy` o el contenedor ausente. El `HEALTHCHECK` de la imagen consulta `/health` cada 30 s |
+| **Errores HTTP** | Cada solicitud queda en el log con su `status_code`. Los 5xx: `docker compose logs --no-log-prefix \| grep -c '"status_code": 5'`. Los 4xx son entradas inválidas rechazadas |
+| **Aumento de latencia** | Cada solicitud registra `duration_ms` y la respuesta trae el header `X-Process-Time-ms`. Una predicción ronda los 10 ms; valores sostenidos de cientos de ms indican un problema |
+| **Rastrear una solicitud puntual** | El `request_id` de la respuesta o del header `X-Request-ID` se busca en los logs: `docker compose logs --no-log-prefix \| grep <request_id>` |
+
+Esto cubre el estado del **servicio**. El estado del **modelo** (si los datos que llegan se
+parecen a los de entrenamiento) se analiza aparte, ver la sección de data drift.
+
 ## Monitoreo del modelo: data drift (Entrega Final)
 
 El monitoreo del servicio responde «¿funciona?». El monitoreo del modelo responde «¿el
